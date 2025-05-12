@@ -48,10 +48,11 @@ import org.kohsuke.stapler.StaplerRequest2;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 public class ImageScanningBuilder extends Builder implements SimpleBuildStep {
 
-  private final String imageName;
+  private String imageName;
   private boolean bailOnFail = GlobalConfiguration.DEFAULT_BAIL_ON_FAIL;
   private boolean bailOnPluginFail = GlobalConfiguration.DEFAULT_BAIL_ON_PLUGIN_FAIL;
   private String engineURL = "";
@@ -66,11 +67,15 @@ public class ImageScanningBuilder extends Builder implements SimpleBuildStep {
   // Fields in config.jelly must match the parameter names in the "DataBoundConstructor" or "DataBoundSetter"
   @DataBoundConstructor
   public ImageScanningBuilder(String imageName) {
-    this.imageName = imageName;
+      this.imageName = imageName;
   }
 
   public String getImageName() {
     return imageName;
+  }
+
+  public void setImageName(String imageName) {
+      this.imageName = imageName;
   }
 
   public boolean getBailOnFail() {

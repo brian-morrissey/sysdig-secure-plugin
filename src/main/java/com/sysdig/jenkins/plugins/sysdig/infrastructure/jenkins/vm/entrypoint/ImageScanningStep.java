@@ -32,17 +32,30 @@ import org.kohsuke.stapler.QueryParameter;
 
 import java.io.IOException;
 import java.io.Serial;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Set;
+import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 
 public class ImageScanningStep extends Step implements BuildStep {
 
   final ImageScanningBuilder builder;
+  private String name;
 
   // Fields in config.jelly must match the parameter names in the "DataBoundConstructor" or "DataBoundSetter"
+
+  // Substitue legacy name for imageName if it is configured
   @DataBoundConstructor
-  public ImageScanningStep(String imageName) {
-    this.builder = new ImageScanningBuilder(imageName);
+  public ImageScanningStep(String imageName, String name) {
+    if (imageName == null && name != null) {
+        this.builder = new ImageScanningBuilder(name);
+    } else {
+        this.builder = new ImageScanningBuilder(imageName);
+    }
   }
 
   public String getImageName() {
@@ -139,9 +152,18 @@ public class ImageScanningStep extends Step implements BuildStep {
     builder.setScannerBinaryPath(scannerBinayPath);
   }
 
+  public String getName() {
+    return name;
+  }
+
+  @DataBoundSetter
+  public void setName(String name) {
+    this.name = name;
+  }
+
   @Override
   public StepExecution start(StepContext stepContext) {
-    return new Execution(stepContext, this.builder);
+    return new Execution(stepContext, this.builder, this.name);
   }
 
   @Override
@@ -176,12 +198,16 @@ public class ImageScanningStep extends Step implements BuildStep {
     @Serial
     private static final long serialVersionUID = 1;
     private transient final ImageScanningBuilder builder;
-
+    private final String name;
+  
     private Execution(
       @NonNull StepContext context,
-      ImageScanningBuilder builder) {
+      ImageScanningBuilder builder,
+      String name
+    ) {
       super(context);
       this.builder = builder;
+      this.name = name;
     }
 
     @Override
@@ -190,6 +216,23 @@ public class ImageScanningStep extends Step implements BuildStep {
       FilePath workspace = getContext().get(FilePath.class);
       assert workspace != null;
       workspace.mkdirs();
+  
+      // Legacy support for name pipeline parameter
+      // Only 1 image will be supported in the file
+
+      if (name != null) {
+        FilePath filePath = workspace.child(name);
+        if (filePath.exists()) {
+          try (InputStream inputStream = filePath.read()) {
+        String firstLine = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8)).readLine();
+        if (firstLine != null && !firstLine.isEmpty()) {
+          builder.setImageName(firstLine);
+        }
+          }
+        }
+      }
+
+
       builder.perform(
         getContext().get(Run.class),
         workspace,
@@ -204,7 +247,7 @@ public class ImageScanningStep extends Step implements BuildStep {
   }
 
   @Extension // This indicates to Jenkins that this is an implementation of an extension point.
-  public static final class DescriptorImpl extends StepDescriptor {
+  public static class DescriptorImpl extends StepDescriptor {
 
 
     public static final boolean DEFAULT_BAIL_ON_FAIL = true;
@@ -239,5 +282,16 @@ public class ImageScanningStep extends Step implements BuildStep {
     public String getFunctionName() {
       return "sysdigImageScan";
     }
+    
   }
+  // Create an alias for the legacy sysdig pipeline function
+  @Extension
+  public static class AliasDescriptorImpl extends DescriptorImpl {
+
+    @Override
+    public String getFunctionName() {
+        return "sysdig"; // Alias for sysdigImageScan
+    }
+  }
+  
 }
